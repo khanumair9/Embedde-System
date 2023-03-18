@@ -1,0 +1,226 @@
+#include <ESP8266WiFi.h>
+#include <ESP8266WebServer.h>
+#include "ThingSpeak.h"
+#include "DHT.h"
+#include <Servo.h>
+#define DHTTYPE DHT22 // DHT 22 (AM2302), AM2321
+// DHT Sensor
+uint8_t DHTPin = D8;
+// Initialize DHT sensor.
+DHT dht(DHTPin, DHTTYPE);
+float Temperature;
+float Humidity;
+//Put your SSID & Password
+const char* ssid = "Nomore"; // Enter SSID here
+const char* password = "muhammad123"; //Enter Password here
+unsigned long myChannelNumber =1264168; //REPLACE this with yours
+const char * myWriteAPIKey = "I00FENEK64F9QXZE"; //REPLACE this with yours
+const char* servert = "api.thingspeak.com";
+ESP8266WebServer server(8092);
+uint8_t LEDpin = D2;
+uint8_t FANpin = D3;
+uint8_t DOORpin = D4;
+Servo myservo;
+WiFiClient client;
+bool LEDstatus = LOW;
+bool FANstatus = LOW;
+bool DOORstatus = LOW;
+int i = 0;
+int j = 0;
+int k = 0;
+void updateThingSpeak(float Temperature, float Humidity, bool  LEDstatus, bool FANstatus, bool DOORstatus) {
+  ThingSpeak.setField(1, Temperature);
+  ThingSpeak.setField(2, Humidity);
+  ThingSpeak.setField(3, LEDstatus);
+  ThingSpeak.setField(4, FANstatus);
+  ThingSpeak.setField(5, DOORstatus);
+  ThingSpeak.writeFields(myChannelNumber, myWriteAPIKey);
+  delay(50);
+}
+void setup() {
+  Serial.begin(9600);
+  ThingSpeak.begin(client);
+  delay(100);
+  dht.begin();
+  pinMode(FANpin, OUTPUT);
+  pinMode(LEDpin, OUTPUT);
+  pinMode(DOORpin, OUTPUT);
+  pinMode(DHTPin, INPUT);
+  myservo.attach(DOORpin);
+  Serial.println("Connecting to ");
+  Serial.println(ssid);
+  //connect to your local wi-fi network
+  WiFi.begin(ssid, password); //check wi-fi is connected to wi-fi network
+  while (WiFi.status() != WL_CONNECTED)
+  {
+    delay(1000);
+    Serial.print(".");
+  }
+  Serial.println("");
+  Serial.println("WiFi connected..!");
+  Serial.print("Got IP: ");
+  Serial.println(WiFi.localIP());
+  server.on("/", handle_OnConnect);
+  server.on("/ledon", handle_ledon);
+  server.on("/ledoff", handle_ledoff);
+  server.onNotFound(handle_NotFound);
+  server.on("/fanon", handle_fanon);
+  server.on("/fanoff", handle_fanoff);
+  server.on("/dooropen", handle_dooropen);
+  server.on("/doorclose", handle_doorclose);
+  server.begin();
+  Serial.println("HTTP server started");
+}
+void loop() {
+  server.handleClient();
+  if (LEDstatus)
+  {
+    digitalWrite(LEDpin, HIGH);
+  }
+  else
+  {
+    digitalWrite(LEDpin, LOW);
+  }
+  if (FANstatus)
+  {
+    digitalWrite(FANpin, HIGH);
+  }
+  else
+  {
+    digitalWrite(FANpin, LOW);
+  }
+  if (DOORstatus)
+  { myservo.write(90);
+    // digitalWrite(DOORpin, HIGH);
+  }
+  else
+  { myservo.write( 0 );
+    //digitalWrite(DOORpin, LOW);
+  }
+  if (client.connect(servert, 80)) {
+    updateThingSpeak(Temperature, Humidity, LEDstatus, FANstatus, DOORstatus);
+  }
+}
+void handle_OnConnect()
+{
+  LEDstatus = LOW;
+  FANstatus = LOW;
+  myservo.write(0);
+  DOORstatus = LOW;
+  i = 0;
+  Temperature = dht.readTemperature(); // Gets the values of the temperature
+  Humidity = dht.readHumidity(); // Gets the values of the humidity
+  // Temperature = 20.34;
+  // Humidity = 17.01;
+  server.send(200, "text/html" , SendHTML());
+}
+void handle_ledon() {
+  LEDstatus = HIGH;
+  i = 1;
+  Temperature = dht.readTemperature(); // Gets the values of the temperature
+  Humidity = dht.readHumidity(); // Gets the values of the humidity
+  // Temperature = 20.01;
+  // Humidity = 16.01;
+  server.send(200, "text/html", SendHTML());
+}
+void handle_ledoff() {
+  LEDstatus = LOW;
+  i = 0;
+  Temperature = dht.readTemperature(); // Gets the values of the temperature
+  Humidity = dht.readHumidity(); // Gets the values of the humidity
+  // Temperature = 10.34;
+  // Humidity = 13.01;
+  server.send(200, "text/html", SendHTML());
+}
+void handle_fanon()
+{
+  FANstatus = HIGH;
+  j = 1;
+  Temperature = dht.readTemperature();// Gets the values of the temperature
+  Humidity = dht.readHumidity(); // Gets the values of the humidity
+  // Temperature = 22.34;
+  // Humidity = 13.01;
+  server.send(200, "text/html", SendHTML());
+}
+void handle_fanoff() {
+  FANstatus = LOW;
+  j = 0;
+  Temperature = dht.readTemperature();// Gets the values of the temperature
+  Humidity = dht.readHumidity();// Gets the values of the humidity
+  // Temperature = 12.34;
+  // Humidity = 11.01;
+  server.send(200, "text/html", SendHTML());
+}
+void handle_dooropen() {
+  DOORstatus = HIGH;
+  myservo.write(90);
+  k = 1;
+  Temperature = dht.readTemperature(); // Gets the values of the temperature
+  Humidity = dht.readHumidity(); // Gets the values of the humidity
+  // Temperature = 18.34;
+  // Humidity = 7.01;
+  server.send(200, "text/html", SendHTML());
+}
+void handle_doorclose() {
+  DOORstatus = LOW;
+  myservo.write(0);
+  k = 0;
+  Temperature = dht.readTemperature(); // Gets the values of the temperature
+  Humidity = dht.readHumidity(); // Gets the values of the humidity
+  //Temperature = 2.34;
+  //Humidity = 1.01;
+  server.send(200, "text/html", SendHTML());
+}
+void handle_NotFound()
+{
+  server.send(404, "text/plain", "Not found");
+}
+String SendHTML()
+{ String ptr = "<!DOCTYPE html>";
+  ptr += "<html>"; ptr += "<head>";
+  ptr += "<title>Home_Automation</title>";
+  ptr += "</head>"; ptr += "<body>";
+  ptr += "<h1 style='vertical-align: text-top;color:Indigo;line-height:40px;font-size:48px;font:EraslightITC;text-align:center;background-color:MediumSeaGreen'><img src='home.png' alt='Home_Logo'> Home Automation</h2>";
+  ptr += "<h2 style='text-align:center;'><rec style='font-size:25px;font:EraslightITC;background-color:MediumSeaGreen;'>Temp & Humidity ";
+  ptr += Temperature; ptr += "C ";
+  ptr += Humidity;
+  ptr += "%</rec></h2>";
+  if (i == 0)
+    ptr += "<h2 style='text-align:center;'><input type=\"button\" style='background-color:LightSkyBlue;font-size:37px;font:EraslightITC;'value=\"Bed Room Light OFF\" id=\"light\"></input></h2>";
+  else
+    ptr += "<h2 style='text-align:center;'><input type=\"button\" style='background-color:LightSkyBlue;font-size:37px;font:EraslightITC;'value=\"Bed Room Light ON\" id=\"light\"></input></h2>";
+  ptr += "<h2 style='text-align:center'>";
+  ptr += "<button onclick=\"window.location.href='/ledon'; light_on();\" style='color:Indigo;line-height:42px;font-size:39px;font:EraslightITC;button-align:center;background-color:MediumSeaGreen' > Light ON </button>";
+  ptr += "<button onclick=\"window.location.href='/ledoff'; light_off();\" style='color:Indigo;line-height:42px;font-size:39px;font:EraslightITC;button-align:center;background-color:MediumSeaGreen' > Light OFF </button>";
+  if (j == 0)
+    ptr += "<h2 style='text-align:center;'><input type=\"button\" style='background-color:LightSkyBlue;font-size:38px;font:EraslightITC;'value=\"Bed Room Fan OFF\" id=\"fan\"></input></h2>";
+  else
+    ptr += "<h2 style='text-align:center;'><input type=\"button\" style='background-color:LightSkyBlue;font-size:38px;font:EraslightITC;'value=\"Bed Room Fan ON\" id=\"fan\"></input></h2>";
+  ptr += "<h2 style='text-align:center'>";
+  ptr += "<button onclick=\"window.location.href='/fanon'; fan_on();\" style='color:Indigo;line-height:43px;font-size:43px;font:EraslightITC;button-align:center;background-color:MediumSeaGreen' > Fan ON </button>";
+  ptr += "<button onclick=\"window.location.href='/fanoff'; fan_off();\" style='color:Indigo;line-height:43px;font-size:43px;font:EraslightITC;button-align:center;background-color:MediumSeaGreen' > Fan OFF </button>";
+  if (k == 0)
+    ptr += "<h2 style='text-align:center;'><input type=\"button\" style='background-color:LightSkyBlue;font-size:68px;font:EraslightITC' value=\"Door Close\" id=\"door\"></input></h2>";
+  else
+    ptr += "<h2 style='text-align:center;'><input type=\"button\" style='background-color:LightSkyBlue;font-size:68px;font:EraslightITC' value=\"Door Open\" id=\"door\"></input></h2>";
+  ptr += "<h2 style='text-align:center'>";
+  ptr += "<button onclick=\"window.location.href='/dooropen'; door_open();\" style='color:Indigo;line-height:34px;font-size:33px;font:EraslightITC;button-align:center;background-color:MediumSeaGreen'> Door Open </button>";
+  ptr += "<button onclick=\"window.location.href='/doorclose'; door_close();\" style='color:Indigo;line-height:34px;font-size:33px;font:EraslightITC;text-align:center;background-color:MediumSeaGreen'> Door Close </button></h2>";
+  ptr += "<script>";
+  ptr += "function fan_off() {document.getElementById(\"fan\").value = \"Bed Room Fan OFF\"; }";
+  ptr += "</script>"; ptr += "<script>";
+  ptr += "function fan_on() {document.getElementById(\"fan\").value = \"Bed Room Fan ON\";}";
+  ptr += "</script>"; ptr += "<script>";
+  ptr += "function light_off() {document.getElementById(\"light\").value = \"Bed Room Light OFF\";}";
+  ptr += "</script>"; ptr += "<script>";
+  ptr += "function light_on() {document.getElementById(\"light\").value = \"Bed Room Light ON\";}";
+  ptr += "</script>"; ptr += "<script>";
+  ptr += "function door_open() {document.getElementById(\"door\").value = \"Door Open\";}";
+  ptr += "</script>";
+  ptr += "<script>";
+  ptr += "function door_close() {document.getElementById(\"door\").value = \"Door Close\";}";
+  ptr += "</script>";
+  ptr += "</body>";
+  ptr += "</html>";
+  return ptr;
+}
